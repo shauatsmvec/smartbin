@@ -4,95 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Bin Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
     <style>
-        * {
+        body {
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f7f9fc;
-            color: #333;
+            background-color: #f4f4f4;
             text-align: center;
-            padding: 20px;
         }
-
         header {
             background-color: #28a745;
             color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+            padding: 15px;
+            font-size: 1.5em;
         }
-
         main {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
+            padding: 20px;
         }
-
         #map-container {
-            width: 100%;
+            width: 80%;
             height: 400px;
+            margin: 20px auto;
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
         }
-
         table {
-            width: 100%;
+            width: 80%;
+            margin: 20px auto;
             border-collapse: collapse;
             background: white;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             border-radius: 10px;
             overflow: hidden;
-            text-align: center;
         }
-
         th, td {
-            padding: 15px;
+            padding: 12px;
             border: 1px solid #ddd;
         }
-
         th {
             background-color: #28a745;
             color: white;
-            font-size: 1.1em;
         }
-
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
-
         .full-bin {
-            background-color: #dc3545 !important;
+            background-color: red !important;
             color: white;
             font-weight: bold;
         }
-
-        .timestamp {
-            color: #fff700;
-            font-weight: bold;
-        }
     </style>
-
-    <!-- Leaflet.js CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 </head>
 <body>
     <header>
         <h1>Smart Bin Management System</h1>
     </header>
     <main>
-        <section>
+        <section id="map">
             <h2>Smart Bin Locations</h2>
             <div id="map-container"></div>
         </section>
-        <section>
+        <section id="status">
             <h2>Bin Status</h2>
             <table>
                 <thead>
@@ -104,79 +76,70 @@
                     </tr>
                 </thead>
                 <tbody id="bin-data">
-                    <!-- Data will be inserted here dynamically -->
+                    <!-- Real-time data will be inserted dynamically via JavaScript -->
                 </tbody>
             </table>
         </section>
     </main>
-    <script>
-        // Initialize Leaflet map
-        var map = L.map('map-container', {
-            center: [20.5937, 78.9629], // Default center (India)
-            zoom: 5,
-            maxBounds: [[-90, -180], [90, 180]], // Prevents map repetition
-            maxZoom: 18,
-            minZoom: 3
-        });
 
-        // Add OpenStreetMap tile layer
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        var map = L.map('map-container').setView([20.5937, 78.9629], 5); // Default view (India)
+        
+        // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Dictionary to store bin markers
-        var binMarkers = {};
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                binId: params.get("binId"),
+                location: params.get("location"),
+                fillLevel: params.get("fillLevel")
+            };
+        }
 
-        // Function to update bin data and map markers
-        function updateBinData(binId, location, fillLevel) {
+        function updateDashboard() {
+            const { binId, location, fillLevel } = getQueryParams();
+            
+            if (!binId || !location || !fillLevel) {
+                console.log("No data provided in URL.");
+                return;
+            }
+
+            // Convert location into latitude and longitude
+            const [lat, lon] = location.split(",").map(Number);
+
+            // Update Table
             const tableBody = document.getElementById("bin-data");
             let row = document.getElementById(`bin-${binId}`);
-            let timestamp = new Date().toLocaleString();
 
             if (!row) {
                 row = document.createElement("tr");
                 row.id = `bin-${binId}`;
-                row.innerHTML = `
-                    <td>${binId}</td>
-                    <td>${location}</td>
-                    <td>${fillLevel}%</td>
-                    <td class="timestamp"></td>`;
+                row.innerHTML = `<td>${binId}</td><td>${lat}, ${lon}</td><td>${fillLevel}%</td><td>${new Date().toLocaleString()}</td>`;
                 tableBody.appendChild(row);
             } else {
                 row.cells[2].textContent = `${fillLevel}%`;
+                row.cells[3].textContent = `${new Date().toLocaleString()}`;
             }
 
-            // Change row color and display timestamp if bin is full
-            if (fillLevel === 100) {
+            // Highlight row in red if bin is full (100%)
+            if (parseInt(fillLevel) === 100) {
                 row.classList.add("full-bin");
-                row.cells[3].textContent = `Full at ${timestamp}`;
-            } else {
-                row.classList.remove("full-bin");
-                row.cells[3].textContent = '';
+                alert(`Bin ${binId} is FULL!`);
             }
 
-            // Update map marker
-            var latLon = location.split(",");
-            var lat = parseFloat(latLon[0]);
-            var lon = parseFloat(latLon[1]);
-
-            if (binMarkers[binId]) {
-                binMarkers[binId].setLatLng([lat, lon]);
-                binMarkers[binId].setPopupContent(`<b>Bin ${binId}</b><br>Status: ${fillLevel}%`);
-            } else {
-                var marker = L.marker([lat, lon]).addTo(map)
-                    .bindPopup(`<b>Bin ${binId}</b><br>Status: ${fillLevel}%`);
-                binMarkers[binId] = marker;
-            }
-
-            // Zoom into bin location
-            map.setView([lat, lon], 14);
+            // Update Map
+            map.setView([lat, lon], 15); // Zoom in to the location
+            L.marker([lat, lon]).addTo(map)
+                .bindPopup(`<b>Bin ${binId}</b><br>Fill Level: ${fillLevel}%`)
+                .openPopup();
         }
 
-        // Function to send data via console
-        window.postBinData = function(data) {
-            updateBinData(data.binId, data.location, data.fillLevel);
-        };
+        window.onload = updateDashboard;
     </script>
 </body>
 </html>
