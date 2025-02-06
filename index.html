@@ -104,14 +104,8 @@
             };
         }
 
-        // Function to load saved bin data from localStorage
-        function loadStoredData() {
-            const storedData = JSON.parse(localStorage.getItem("binData")) || [];
-            storedData.forEach(data => updateDashboard(data.binId, data.location, data.fillLevel, data.timestamp, false));
-        }
-
         // Function to update the table and map
-        function updateDashboard(binId, location, fillLevel, timestamp, saveData = true) {
+        function updateDashboard(binId, location, fillLevel, timestamp) {
             const [lat, lon] = location.split(",").map(Number);
 
             // Update Table
@@ -140,32 +134,22 @@
                 .bindPopup(`<b>Bin ${binId}</b><br>Fill Level: ${fillLevel}%`)
                 .openPopup();
             map.setView([lat, lon], 15); // Zoom in
+        }
 
-            // Save data to localStorage
-            if (saveData) {
-                const storedData = JSON.parse(localStorage.getItem("binData")) || [];
-                storedData.push({ binId, location, fillLevel, timestamp });
-                localStorage.setItem("binData", JSON.stringify(storedData));
+        // Function to periodically check for new data
+        function checkForNewData() {
+            const params = getQueryParams();
+            if (params.binId && params.location && params.fillLevel) {
+                const timestamp = new Date().toLocaleString();
+                updateDashboard(params.binId, params.location, params.fillLevel, timestamp);
             }
         }
 
-        // Function to clear stored data when page is refreshed or closed
-        function clearStoredData() {
-            localStorage.removeItem("binData");
-        }
+        // Check for new data every 5 seconds
+        setInterval(checkForNewData, 5000);
 
-        // Load existing data
-        loadStoredData();
-
-        // Get new data from URL
-        const params = getQueryParams();
-        if (params.binId && params.location && params.fillLevel) {
-            const timestamp = new Date().toLocaleString();
-            updateDashboard(params.binId, params.location, params.fillLevel, timestamp);
-        }
-
-        // Clear data when the page is refreshed or closed
-        window.addEventListener("beforeunload", clearStoredData);
+        // Initial load of data
+        checkForNewData();
     </script>
 </body>
 </html>
