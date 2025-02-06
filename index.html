@@ -76,7 +76,7 @@
                     </tr>
                 </thead>
                 <tbody id="bin-data">
-                    <!-- Real-time data will be inserted dynamically via JavaScript -->
+                    <!-- Data will be inserted dynamically -->
                 </tbody>
             </table>
         </section>
@@ -85,31 +85,33 @@
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
     <script>
         // Initialize the map
-        var map = L.map('map-container').setView([20.5937, 78.9629], 5); // Default view (India)
-        
+        var map = L.map('map-container').setView([20.5937, 78.9629], 5); // Default: India
+        var markers = new L.LayerGroup().addTo(map);
+
         // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
+        // Function to get data from URL
         function getQueryParams() {
             const params = new URLSearchParams(window.location.search);
             return {
                 binId: params.get("binId"),
                 location: params.get("location"),
-                fillLevel: params.get("fillLevel")
+                fillLevel: params.get("fillLevel"),
+                user: params.get("user") || "guest" // Default user is "guest" if not provided
             };
         }
 
-        function updateDashboard() {
-            const { binId, location, fillLevel } = getQueryParams();
-            
-            if (!binId || !location || !fillLevel) {
-                console.log("No data provided in URL.");
-                return;
-            }
+        // Function to load saved bin data from localStorage
+        function loadStoredData() {
+            const storedData = JSON.parse(localStorage.getItem("binData")) || [];
+            storedData.forEach(data => updateDashboard(data.binId, data.location, data.fillLevel, data.timestamp, false));
+        }
 
-            // Convert location into latitude and longitude
+        // Function to update the table and map
+        function updateDashboard(binId, location, fillLevel, timestamp, saveData = true) {
             const [lat, lon] = location.split(",").map(Number);
 
             // Update Table
@@ -119,11 +121,11 @@
             if (!row) {
                 row = document.createElement("tr");
                 row.id = `bin-${binId}`;
-                row.innerHTML = `<td>${binId}</td><td>${lat}, ${lon}</td><td>${fillLevel}%</td><td>${new Date().toLocaleString()}</td>`;
+                row.innerHTML = `<td>${binId}</td><td>${lat}, ${lon}</td><td>${fillLevel}%</td><td>${timestamp}</td>`;
                 tableBody.appendChild(row);
             } else {
                 row.cells[2].textContent = `${fillLevel}%`;
-                row.cells[3].textContent = `${new Date().toLocaleString()}`;
+                row.cells[3].textContent = timestamp;
             }
 
             // Highlight row in red if bin is full (100%)
@@ -133,13 +135,37 @@
             }
 
             // Update Map
-            map.setView([lat, lon], 15); // Zoom in to the location
-            L.marker([lat, lon]).addTo(map)
+            markers.clearLayers();
+            L.marker([lat, lon]).addTo(markers)
                 .bindPopup(`<b>Bin ${binId}</b><br>Fill Level: ${fillLevel}%`)
                 .openPopup();
+            map.setView([lat, lon], 15); // Zoom in
+
+            // Save data to localStorage
+            if (saveData) {
+                const storedData = JSON.parse(localStorage.getItem("binData")) || [];
+                storedData.push({ binId, location, fillLevel, timestamp });
+                localStorage.setItem("binData", JSON.stringify(storedData));
+            }
         }
 
-        window.onload = updateDashboard;
+        // Function to clear stored data when page is refreshed or closed
+        function clearStoredData() {
+            localStorage.removeItem("binData");
+        }
+
+        // Load existing data
+        loadStoredData();
+
+        // Get new data from URL
+        const params = getQueryParams();
+        if (params.binId && params.location && params.fillLevel) {
+            const timestamp = new Date().toLocaleString();
+            updateDashboard(params.binId, params.location, params.fillLevel, timestamp);
+        }
+
+        // Clear data when the page is refreshed or closed
+        window.addEventListener("beforeunload", clearStoredData);
     </script>
 </body>
 </html>
